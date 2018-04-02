@@ -1,0 +1,118 @@
+---
+title: "Reproducible Research Week 2 Project"
+author: "Xiangpei Guo"
+date: "March 26, 2018"
+output: html_document
+---
+
+This is the week 2 project of the course, Reproducible Research in which we read in a dataset, made histograms of steps taken each day, and compared the means, medians, and plots. The first step I took was to read in data which is seen here.
+
+```{r}
+#Reading files
+activity_data <- read.csv("activity.csv")
+```
+
+The next step was calculating the total number of steps.
+
+```{r}
+#Calculating total steps
+steps <- aggregate(activity_data$steps, by = list(Date = activity_data$date), FUN = sum)
+names(steps)[names(steps) == "x"] <- "Total"
+temp <- as.Date(steps$Date, "%Y-%m-%d")
+steps$Date <- format(temp, format = "%m-%d")
+head(steps)
+```
+
+Then a histogram was made.
+
+```{r}
+#Histogram of total steps
+library(ggplot2)
+hist_totalSteps1 <- ggplot(data = na.omit(steps), aes(Total)) +
+    geom_histogram() +
+    xlab("Total Number of Steps Each Day") +
+    ylab("Count") +
+    ggtitle("Total Number of Steps Taken Each Day Histogram")
+print(hist_totalSteps1)
+```
+
+And finally I calculated the median and mean of the total number of steps taken per day.
+
+```{r}
+#Calculating mean and median of total steps each day
+mean(na.omit(steps$Total))
+median(na.omit(steps$Total))
+```
+
+From this I found that the mean total number of steps taken per day is 10766.19.
+
+The next part I moved on to is making a time series plot to analyze the daily pattern.
+
+```{r}
+#Time series line plot to determine average number of steps taken each day
+five_minute_steps <- aggregate(steps ~ interval, data = activity_data, FUN = mean)
+TimeSeriesPlot <- ggplot(data = five_minute_steps, aes(x = interval, y = steps)) +
+    geom_line() +
+    xlab("Time Intervals (5 min)") +
+    ylab("Total Number of Steps") +
+    ggtitle("Average Number of Steps Taken at 5-Minute Intervals")
+print(TimeSeriesPlot)
+
+#Finding which 5-min interval has maximum steps
+five_minute_steps[which(five_minute_steps$steps == max(five_minute_steps$steps)),]
+```
+The second part of this code tells us that the maximum number of steps happens at the 835th interval.
+
+In the dataset, there are 2304 days that are NA so I decided to fill them with the mean of the interval.
+
+```{r}
+#Calculating missing values
+sapply(X = activity_data, FUN = function(x) sum(is.na(x)))
+
+#Inputing missing values
+library(dplyr) 
+input_mean_for_na <- function(num) replace(num, is.na(num), mean(num, na.rm = TRUE))
+replacedDays <- (activity_data %>% group_by(interval) %>% mutate(steps = input_mean_for_na(steps)))
+
+#New dataset with replaced days
+new_data <- as.data.frame(replacedDays)
+
+#Histogram with replaced days
+replaced_steps <- aggregate(new_data$steps, by = list(new_data$date), FUN = sum)
+names(replaced_steps)[names(replaced_steps) == "x"] <- "Total"
+names(replaced_steps)[names(replaced_steps) == "Group.1"] <- "Date"
+hist_totalSteps2 <- ggplot(data = replaced_steps, aes(Total)) +
+    geom_histogram() +
+    xlab("Total Number of Steps Each Day") +
+    ylab("Count") +
+    ggtitle("Total Number of Steps Taken Each Day With Replaced NA Values Histogram")
+print(hist_totalSteps2)
+
+#Combining hist_totalSteps1 and 2
+library(grid)
+library(gridExtra)
+grid.arrange(hist_totalSteps1, hist_totalSteps2, ncol = 2)
+
+#Comparing means and medians
+mean(na.omit(steps$Total))
+mean(replaced_steps$Total)
+median(na.omit(steps$Total))
+median(replaced_steps$Total)
+```
+The means stayed the same while the median changed.
+
+As the final part of the assignment, we had to compare activity patterns between weekdays and weekends. 
+
+```{r}
+#Panel plot to compare weekdays and weekends
+new_data$WeekendOrWeekday <- ifelse(weekdays(as.Date(new_data$date)) %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"), "Weekday", "Weekend")
+
+new_data <- (new_data %>% group_by(interval, WeekendOrWeekday) %>% summarise(Mean = mean(steps)))
+ggplot(new_data, mapping = aes(x = interval, y = Mean)) +
+    geom_line() +
+    facet_grid(WeekendOrWeekday ~ .) +
+    xlab("Interval") +
+    ylab("Mean of Steps") +
+    ggtitle("Weekday vs. Weekend Average Number of Steps in Each Interval")
+```
+From this we can see that the weekday has bigger fluctuations because people usually have work so the sudden spike in steps in the beginning could be correlated to the average person working out or commuting during this time as a future study.
